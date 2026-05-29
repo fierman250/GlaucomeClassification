@@ -8,7 +8,7 @@ from src.eda.preprocessing import get_dataset_stats, apply_original, apply_he, a
 logger = setup_logger()
 
 def process_and_save_dataset():
-    root_data_dir = r"C:\Users\laimm\OneDrive\A4_JobREF\9Z_CodeWork\2403CW_GlaucomeClassification\Datasets Sources\RefA1 - Fundus Glaucoma Detection Data"
+    root_data_dir = r"C:\Users\laimm\Processed_Datasets\Datasets"
     out_dir = r"C:\Users\laimm\Processed_Datasets"
     
     logger.info("Scanning original dataset for offline preprocessing...")

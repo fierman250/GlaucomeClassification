@@ -34,7 +34,15 @@ def run_experiments():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Custom Batch Training Started. Device: {device}")
     
-    all_results = []
+    summary_path = os.path.join(RESULTS_DIR, "custom_experiments_summary.xlsx")
+    if os.path.exists(summary_path):
+        try:
+            all_results = pd.read_excel(summary_path).to_dict('records')
+            logger.info(f"Loaded {len(all_results)} previous results from summary file.")
+        except Exception:
+            all_results = []
+    else:
+        all_results = []
     
     # Outer loop: Datasets
     for dataset_name in DATASETS_TO_RUN:
@@ -73,8 +81,8 @@ def run_experiments():
         val_img_split = all_images[val_idx]
         val_lbl_split = all_labels[val_idx]
         
-        # Oversampling
-        train_img_split, train_lbl_split = balance_classes_on_gpu(train_img_split, train_lbl_split, device, logger)
+        # Oversampling - DISABLED due to already balanced dataset
+        # train_img_split, train_lbl_split = balance_classes_on_gpu(train_img_split, train_lbl_split, device, logger)
         
         # DataLoaders
         train_dataset = RAMCachedDataset(train_img_split, train_lbl_split, augment=True)
@@ -91,80 +99,97 @@ def run_experiments():
             
             logger.info(f"\n--- Starting Experiment: {exp_name} ---")
             
-            model = get_model(model_name, num_classes=2, pretrained=True).to(device)
-            criterion = nn.CrossEntropyLoss()
-            optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-            scaler = torch.amp.GradScaler('cuda')
+            weights_path = os.path.join(exp_dir, "best_weights.pth")
             
-            best_val_loss = float('inf')
-            best_model_weights = None
-            
-            train_losses, val_losses, val_accuracies = [], [], []
-            
-            for epoch in range(EPOCHS):
-                model.train()
-                running_loss = 0.0
-                for inputs, labels in train_loader:
-                    optimizer.zero_grad()
-                    with torch.amp.autocast('cuda'):
-                        outputs = model(inputs)
-                        loss = criterion(outputs, labels)
-                    scaler.scale(loss).backward()
-                    scaler.step(optimizer)
-                    scaler.update()
-                    running_loss += loss.item() * inputs.size(0)
+            # --- RESUME LOGIC ---
+            if os.path.exists(weights_path):
+                logger.info(f"Found existing weights for {exp_name}. Skipping training!")
+                model = get_model(model_name, num_classes=2, pretrained=False).to(device)
+                model.load_state_dict(torch.load(weights_path))
                 
-                epoch_loss = running_loss / len(train_loader.dataset)
+                # Check if this experiment is already in the summary file
+                already_in_results = any(r.get('Experiment') == exp_name for r in all_results)
+                if already_in_results:
+                    logger.info(f"Experiment {exp_name} is already in the Excel summary. Moving to next model...")
+                    del model
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    continue
+            else:
+                model = get_model(model_name, num_classes=2, pretrained=True).to(device)
+                criterion = nn.CrossEntropyLoss()
+                optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+                scaler = torch.amp.GradScaler('cuda')
                 
-                model.eval()
-                val_loss = 0.0
-                correct = 0
-                total = 0
-                with torch.no_grad():
-                    for inputs, labels in val_loader:
-                        outputs = model(inputs)
-                        loss = criterion(outputs, labels)
-                        val_loss += loss.item() * inputs.size(0)
-                        preds = torch.argmax(outputs, dim=1)
-                        correct += (preds == labels).sum().item()
-                        total += labels.size(0)
+                best_val_loss = float('inf')
+                best_model_weights = None
                 
-                val_loss = val_loss / len(val_loader.dataset)
-                val_acc = correct / total
+                train_losses, val_losses, val_accuracies = [], [], []
                 
-                train_losses.append(epoch_loss)
-                val_losses.append(val_loss)
-                val_accuracies.append(val_acc)
+                for epoch in range(EPOCHS):
+                    model.train()
+                    running_loss = 0.0
+                    for inputs, labels in train_loader:
+                        optimizer.zero_grad()
+                        with torch.amp.autocast('cuda'):
+                            outputs = model(inputs)
+                            loss = criterion(outputs, labels)
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+                        running_loss += loss.item() * inputs.size(0)
+                    
+                    epoch_loss = running_loss / len(train_loader.dataset)
+                    
+                    model.eval()
+                    val_loss = 0.0
+                    correct = 0
+                    total = 0
+                    with torch.no_grad():
+                        for inputs, labels in val_loader:
+                            outputs = model(inputs)
+                            loss = criterion(outputs, labels)
+                            val_loss += loss.item() * inputs.size(0)
+                            preds = torch.argmax(outputs, dim=1)
+                            correct += (preds == labels).sum().item()
+                            total += labels.size(0)
+                    
+                    val_loss = val_loss / len(val_loader.dataset)
+                    val_acc = correct / total
+                    
+                    train_losses.append(epoch_loss)
+                    val_losses.append(val_loss)
+                    val_accuracies.append(val_acc)
+                    
+                    logger.info(f"Epoch {epoch+1}/{EPOCHS} | Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+                    
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        best_model_weights = copy.deepcopy(model.state_dict())
                 
-                logger.info(f"Epoch {epoch+1}/{EPOCHS} | Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+                if best_model_weights is not None:
+                    model.load_state_dict(best_model_weights)
+                    torch.save(best_model_weights, weights_path)
                 
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    best_model_weights = copy.deepcopy(model.state_dict())
-            
-            if best_model_weights is not None:
-                model.load_state_dict(best_model_weights)
-                torch.save(best_model_weights, os.path.join(exp_dir, "best_weights.pth"))
-            
-            # Plot Learning Curves
-            plt.figure(figsize=(12, 5))
-            plt.subplot(1, 2, 1)
-            plt.plot(range(1, EPOCHS+1), train_losses, label='Train Loss')
-            plt.plot(range(1, EPOCHS+1), val_losses, label='Val Loss')
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.title('Training & Validation Loss')
-            plt.legend()
-            
-            plt.subplot(1, 2, 2)
-            plt.plot(range(1, EPOCHS+1), val_accuracies, label='Val Accuracy', color='green')
-            plt.xlabel('Epoch')
-            plt.ylabel('Accuracy')
-            plt.title('Validation Accuracy')
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig(os.path.join(exp_dir, "learning_curves.png"))
-            plt.close()
+                # Plot Learning Curves
+                plt.figure(figsize=(12, 5))
+                plt.subplot(1, 2, 1)
+                plt.plot(range(1, EPOCHS+1), train_losses, label='Train Loss')
+                plt.plot(range(1, EPOCHS+1), val_losses, label='Val Loss')
+                plt.xlabel('Epoch')
+                plt.ylabel('Loss')
+                plt.title('Training & Validation Loss')
+                plt.legend()
+                
+                plt.subplot(1, 2, 2)
+                plt.plot(range(1, EPOCHS+1), val_accuracies, label='Val Accuracy', color='green')
+                plt.xlabel('Epoch')
+                plt.ylabel('Accuracy')
+                plt.title('Validation Accuracy')
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(os.path.join(exp_dir, "learning_curves.png"))
+                plt.close()
             
             # Final Evaluation on Test Set (if available) or Val set
             eval_loader = test_loader if test_loader is not None else val_loader

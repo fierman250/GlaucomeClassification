@@ -79,9 +79,9 @@ val_labels = all_labels[val_idx]
 
 print(f"Before balancing - Train Positive: {(train_labels == 1).sum().item()}, Train Negative: {(train_labels == 0).sum().item()}")
 
-# Balance classes (Oversampling)
-train_images, train_labels = balance_classes_on_gpu(train_images, train_labels, device, logger)
-print(f"After balancing  - Train Positive: {(train_labels == 1).sum().item()}, Train Negative: {(train_labels == 0).sum().item()}")
+# Balance classes (Oversampling) - DISABLED due to already balanced dataset
+# train_images, train_labels = balance_classes_on_gpu(train_images, train_labels, device, logger)
+# print(f"After balancing  - Train Positive: {(train_labels == 1).sum().item()}, Train Negative: {(train_labels == 0).sum().item()}")
 
 # Create DataLoaders
 train_dataset = RAMCachedDataset(train_images, train_labels, augment=True)

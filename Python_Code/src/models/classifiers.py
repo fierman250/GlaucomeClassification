@@ -41,7 +41,7 @@ def get_model(model_name, num_classes=2, pretrained=True):
         model.fc = nn.Linear(in_features, num_classes)
         
     elif model_name == 'mobilenet_v2':
-        weights = models.MobileNetV2_Weights.DEFAULT if pretrained else None
+        weights = models.MobileNet_V2_Weights.DEFAULT if pretrained else None
         model = models.mobilenet_v2(weights=weights)
         in_features = model.classifier[1].in_features
         model.classifier[1] = nn.Linear(in_features, num_classes)
