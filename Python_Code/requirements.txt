@@ -1,0 +1,10 @@
+torch>=2.0.0
+torchvision
+scikit-learn
+opencv-python
+pandas
+numpy
+matplotlib
+seaborn
+streamlit
+ipykernel
