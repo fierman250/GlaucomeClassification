@@ -5,7 +5,6 @@ from torchvision import transforms
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
-import logging
 
 # ==============================================================================
 # DATASET DEFINITION (Offline Preprocessed)
@@ -75,9 +74,11 @@ class RAMCachedDataset(Dataset):
             self.aug_transform = transforms.Compose([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(degrees=15),
+                transforms.RandomRotation(degrees=45),
                 transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.8, 1.2)),
-                transforms.RandomResizedCrop(size=224, scale=(0.8, 1.0))
+                transforms.RandomResizedCrop(size=224, scale=(0.8, 1.0)),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
+                transforms.RandomErasing(p=0.1)
             ])
         else:
             self.aug_transform = None

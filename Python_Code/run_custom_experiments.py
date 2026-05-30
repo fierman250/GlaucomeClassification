@@ -18,13 +18,18 @@ from src.models.trainer import calculate_metrics, plot_confusion_matrix, plot_ro
 # ==============================================================================
 # USER OPTIONS (EDIT THESE LISTS)
 # ==============================================================================
-MODELS_TO_RUN   = ['resnet18', 'alexnet', 'densenet121', 'mobilenet_v2','vgg16',]  # Available: 'alexnet', 'vgg16', 'densenet121', 'resnet18', 'mobilenet_v2'
-DATASETS_TO_RUN = ['original', 'he', 'clahe']     # Available: 'original', 'he', 'gamma', 'clahe'
+MODELS_TO_RUN   = ['densenet121', 
+                #    'resnet18', 
+                #    'alexnet', 'mobilenet_v2','vgg16',
+                  ]  # Available: 'alexnet', 'vgg16', 'densenet121', 'resnet18', 'mobilenet_v2'
+DATASETS_TO_RUN = ['original', 
+                #    'he', 'clahe'
+                  ] # Available: 'original', 'he', 'gamma', 'clahe'
 # ==============================================================================
 
 ROOT_DATA_DIR = r"C:\Users\laimm\Processed_Datasets"
 RESULTS_DIR = "results/custom_experiments"
-EPOCHS = 50
+EPOCHS = 100
 BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
 
@@ -118,7 +123,8 @@ def run_experiments():
             else:
                 model = get_model(model_name, num_classes=2, pretrained=True).to(device)
                 criterion = nn.CrossEntropyLoss()
-                optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+                optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+                scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
                 scaler = torch.amp.GradScaler('cuda')
                 
                 best_val_loss = float('inf')
@@ -161,6 +167,8 @@ def run_experiments():
                     val_losses.append(val_loss)
                     val_accuracies.append(val_acc)
                     
+                    scheduler.step(val_loss)
+                    
                     logger.info(f"Epoch {epoch+1}/{EPOCHS} | Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
                     
                     if val_loss < best_val_loss:
@@ -170,6 +178,17 @@ def run_experiments():
                 if best_model_weights is not None:
                     model.load_state_dict(best_model_weights)
                     torch.save(best_model_weights, weights_path)
+                
+                # Save Training History
+                history_df = pd.DataFrame({
+                    'epoch': range(1, EPOCHS+1),
+                    'train_loss': train_losses,
+                    'val_loss': val_losses,
+                    'val_acc': val_accuracies
+                })
+                csv_path = os.path.join(exp_dir, "training_history.csv")
+                history_df.to_csv(csv_path, index=False)
+                logger.info(f"Saved training history to {csv_path}")
                 
                 # Plot Learning Curves
                 plt.figure(figsize=(12, 5))
