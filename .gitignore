@@ -28,8 +28,10 @@ env/
 *.pth
 *.log
 # *.xlsx
-results/
-Python_Code/results/
+# results/
+*.pt
+*.pth
+# Python_Code/results/
 
 # ==============================================================================
 # OS GENERATED FILES
