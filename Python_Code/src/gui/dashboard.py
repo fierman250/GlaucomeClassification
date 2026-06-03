@@ -194,6 +194,22 @@ st.markdown("""
         border-radius: 18px; padding: 28px;
         text-align: center;
     }
+    
+    /* ── FADE-IN ANIMATION FOR CHART TAB ── */
+    .fade-in-chart {
+        animation: fadeSlideIn 0.9s ease-out;
+    }
+    
+    @keyframes fadeSlideIn {
+        0% {
+            opacity: 0;
+            transform: translateY(18px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 
     /* ── HIDE STREAMLIT BRANDING ── */
     #MainMenu, footer { visibility: hidden; }
@@ -211,10 +227,25 @@ RESULTS_FILE = os.path.join(RESULTS_DIR, "glaucoma_classification_benchmark.xlsx
 MODELS       = ['alexnet', 'vgg16', 'densenet121', 'resnet18', 'mobilenet_v2']
 MODEL_LABELS = ['AlexNet', 'VGG-16', 'DenseNet-121', 'ResNet-18', 'MobileNetV2']
 
-PREP_METHODS      = ['original']
-PREP_LABELS       = ['Original']
-PREP_ICONS        = ['📷']
-PREP_COLORS       = ['#00d4ff']
+
+# PREP_METHODS = ['original', 'he', 'gamma', 'clahe']
+# PREP_LABELS = ['Original', 'HE', 'Gamma', 'CLAHE']
+# PREP_ICONS        = ['📷']
+# PREP_COLORS       = ['#00d4ff']
+VIS_PREP_METHODS = ['original', 'he', 'clahe']
+VIS_PREP_LABELS = ['Original', 'HE', 'CLAHE']
+VIS_PREP_ICONS = ['📷', '📊', '🔬']
+VIS_PREP_COLORS = ['#00d4ff', '#a29bfe', '#2ed573']
+VIS_PREP_DESCRIPTIONS = [
+    "Resize to 224×224, no enhancement",
+    "Histogram Equalization for global contrast enhancement",
+    "CLAHE for local contrast enhancement"
+]
+TEST_PREP_METHODS = ['original']
+TEST_PREP_LABELS = ['Original']
+TEST_PREP_ICONS = ['📷']
+TEST_PREP_COLORS = ['#00d4ff']
+
 PREP_DESCRIPTIONS = [
     "Resize to 224×224, no enhancement"
 ]
@@ -239,13 +270,39 @@ DB_STATS = {
 }
 
 # ==============================================================================
+# CHART DATA — MODEL PERFORMANCE
+# ==============================================================================
+CHART_DATA = pd.DataFrame([
+    # Model, Preprocessing, Accuracy, AUC
+    ("ResNet18",      "ORIGINAL", 91.3, 0.971),
+    ("ResNet18",      "HE",       88.8, 0.953),
+    ("ResNet18",      "CLAHE",    89.9, 0.959),
+
+    ("AlexNet",       "ORIGINAL", 89.8, 0.964),
+    ("AlexNet",       "HE",       88.7, 0.953),
+    ("AlexNet",       "CLAHE",    88.9, 0.956),
+
+    ("DenseNet121",   "ORIGINAL", 91.6, 0.973),
+    ("DenseNet121",   "HE",       89.3, 0.960),
+    ("DenseNet121",   "CLAHE",    89.6, 0.963),
+
+    ("MobileNetV2",   "ORIGINAL", 90.2, 0.961),
+    ("MobileNetV2",   "HE",       89.1, 0.955),
+    ("MobileNetV2",   "CLAHE",    89.6, 0.958),
+
+    ("VGG16",         "ORIGINAL", 91.8, 0.973),
+    ("VGG16",         "HE",       90.3, 0.963),
+    ("VGG16",         "CLAHE",    90.1, 0.964),
+], columns=["Model", "Preprocessing", "Accuracy", "AUC"])
+
+# ==============================================================================
 # HERO BANNER
 # ==============================================================================
 st.markdown("""
 <div class="hero-banner">
     <p class="hero-title">👁️ Glaucoma AI Classification System</p>
     <p class="hero-sub">
-        Deep Learning Benchmark &nbsp;·&nbsp; 4 Preprocessing Methods &nbsp;·&nbsp;
+        Deep Learning Benchmark &nbsp;·&nbsp; 3 Preprocessing Methods &nbsp;·&nbsp;
         5 CNN Architectures &nbsp;·&nbsp; 15 Clinical Databases &nbsp;·&nbsp; 20 Experiments
     </p>
     <p class="hero-author">Muhammad Firman Friyadi &nbsp;·&nbsp; LAiMM Lab &nbsp;·&nbsp; NCKU</p>
@@ -255,11 +312,12 @@ st.markdown("""
 # ==============================================================================
 # TABS
 # ==============================================================================
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4 , tab5= st.tabs([
     "🏥  Overview & EDA",
     "🔬  Preprocessing",
     "📊  Benchmark Results",
     "🤖  Clinical Tester",
+    "📈  Chart",
 ])
 
 # ==============================================================================
@@ -362,7 +420,7 @@ with tab1:
     # ── Preprocessing Method Cards ──────────────────────────────────────────────
     st.markdown('<p class="section-header">⚙️ Preprocessing Methods</p>', unsafe_allow_html=True)
     for col, icon, label, desc, color in zip(
-        st.columns(4), PREP_ICONS, PREP_LABELS, PREP_DESCRIPTIONS, PREP_COLORS
+        st.columns(4), VIS_PREP_ICONS, VIS_PREP_LABELS, VIS_PREP_DESCRIPTIONS, VIS_PREP_COLORS
     ):
         with col:
             st.markdown(f"""
@@ -393,7 +451,7 @@ with tab1:
 with tab2:
     st.markdown('<p class="section-header">🔬 Fundus Image Preprocessing Visualizer</p>', unsafe_allow_html=True)
     st.markdown(
-        '<p style="color:#607a9a;">Upload a fundus retinal image to see all 4 preprocessing '
+        '<p style="color:#607a9a;">Upload a fundus retinal image to see all 3 preprocessing '
         'methods applied side-by-side in real time.</p>',
         unsafe_allow_html=True
     )
@@ -412,9 +470,12 @@ with tab2:
         st.markdown('<div class="premium-divider"></div>', unsafe_allow_html=True)
         st.markdown('<p class="section-header">🖼️ Preprocessing Results</p>', unsafe_allow_html=True)
 
-        cols = st.columns(4)
+        cols = st.columns(len(VIS_PREP_METHODS))
+        # for col, method, label, icon, desc, color in zip(
+        #     cols, PREP_METHODS, PREP_LABELS, PREP_ICONS, PREP_DESCRIPTIONS, PREP_COLORS
+        # ):
         for col, method, label, icon, desc, color in zip(
-            cols, PREP_METHODS, PREP_LABELS, PREP_ICONS, PREP_DESCRIPTIONS, PREP_COLORS
+            cols, VIS_PREP_METHODS, VIS_PREP_LABELS, VIS_PREP_ICONS, VIS_PREP_DESCRIPTIONS, VIS_PREP_COLORS
         ):
             with col:
                 st.markdown(
@@ -478,7 +539,7 @@ with tab3:
             fig_auc = px.bar(
                 sorted_df, x='Experiment', y='AUC',
                 color='Preprocessing',
-                color_discrete_sequence=PREP_COLORS,
+                color_discrete_sequence=VIS_PREP_COLORS,
                 hover_data=['Accuracy', 'Sensitivity', 'Specificity', 'F1_Score'],
                 labels={'AUC': 'Mean AUC (5-Fold CV)'}
             )
@@ -588,7 +649,7 @@ with tab4:
                 unsafe_allow_html=True)
     st.markdown(
         '<p style="color:#607a9a;">Upload a fundus image and select a trained model to get '
-        'classification + Grad-CAM across all 4 preprocessing methods — '
+        'classification + Grad-CAM across all 3 preprocessing methods — '
         'replicating the MATLAB demo layout.</p>',
         unsafe_allow_html=True
     )
@@ -625,10 +686,10 @@ with tab4:
             results = {}
 
             for i, (method, label, icon, color) in enumerate(
-                zip(PREP_METHODS, PREP_LABELS, PREP_ICONS, PREP_COLORS)
+                zip(TEST_PREP_METHODS, TEST_PREP_LABELS, TEST_PREP_ICONS, TEST_PREP_COLORS)
             ):
                 progress_bar.progress(
-                    (i + 1) / len(PREP_METHODS),
+                    (i + 1) / len(TEST_PREP_METHODS),
                     text=f"Processing {label}..."
                 )
                 pil_img = preprocess_image(tmp_test, method=method)
@@ -673,7 +734,7 @@ with tab4:
             )
             img_cols = st.columns(4)
             for col, method, label, icon, color in zip(
-                img_cols, PREP_METHODS, PREP_LABELS, PREP_ICONS, PREP_COLORS
+                img_cols, TEST_PREP_METHODS, TEST_PREP_LABELS, TEST_PREP_ICONS, TEST_PREP_COLORS
             ):
                 r = results[method]
                 badge_cls  = "badge-positive" if r['pred'] == 1 else "badge-negative"
@@ -704,7 +765,7 @@ with tab4:
             )
             cam_cols = st.columns(4)
             for col, method, label, icon, color in zip(
-                cam_cols, PREP_METHODS, PREP_LABELS, PREP_ICONS, PREP_COLORS
+                cam_cols, TEST_PREP_METHODS, TEST_PREP_LABELS, TEST_PREP_ICONS, TEST_PREP_COLORS
             ):
                 r = results[method]
                 with col:
@@ -721,20 +782,17 @@ with tab4:
             st.markdown('<div class="premium-divider"></div>', unsafe_allow_html=True)
 
             # ── Verdict Banner ─────────────────────────────────────────────────
+            total_n = len(results)
             pos_n = sum(1 for r in results.values() if r['pred'] == 1)
-            neg_n = 4 - pos_n
-            if pos_n >= 3:
+            neg_n = total_n - pos_n
+            if pos_n > 0:
                 v_color = "#e74c3c"; v_icon = "🔴"
                 v_title = "HIGH RISK — GLAUCOMA DETECTED"
-                v_sub   = f"{pos_n}/4 preprocessing methods agree on a POSITIVE classification."
-            elif pos_n == 2:
-                v_color = "#f39c12"; v_icon = "🟡"
-                v_title = "UNCERTAIN — INCONCLUSIVE"
-                v_sub   = "2/4 methods are positive. Clinical expert review is recommended."
+                v_sub   = f"{pos_n}/{total_n} method predicts a POSITIVE classification."
             else:
                 v_color = "#27ae60"; v_icon = "🟢"
                 v_title = "LOW RISK — LIKELY NORMAL"
-                v_sub   = f"{neg_n}/4 preprocessing methods agree on a NEGATIVE classification."
+                v_sub   = f"{neg_n}/{total_n} method predicts a NEGATIVE classification."
 
             st.markdown(f"""
             <div style="
@@ -755,3 +813,165 @@ with tab4:
                     Always consult a qualified ophthalmologist for clinical diagnosis.
                 </div>
             </div>""", unsafe_allow_html=True)
+
+# ==============================================================================
+# TAB 5 — CHART
+# ==============================================================================
+with tab5:
+    st.markdown('<div class="fade-in-chart">', unsafe_allow_html=True)
+
+    st.markdown(
+        '<p class="section-header">📈 Model & Dataset Performance Chart</p>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<p style="color:#607a9a;">Comparison of validation accuracy and AUC '
+        'across five CNN architectures and three preprocessing methods.</p>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown('<div class="premium-divider"></div>', unsafe_allow_html=True)
+
+    if PLOTLY_AVAILABLE:
+        # ── Accuracy Chart ─────────────────────────────────────────────────────
+        fig_acc = px.bar(
+            CHART_DATA,
+            x="Model",
+            y="Accuracy",
+            color="Preprocessing",
+            barmode="group",
+            text=CHART_DATA["Accuracy"].apply(lambda x: f"{x:.1f}%"),
+            color_discrete_map={
+                "ORIGINAL": "#00d4ff",
+                "HE": "#ffa502",
+                "CLAHE": "#2ed573",
+            },
+            title="Validation Accuracy by Model & Preprocessing"
+        )
+
+        fig_acc.update_traces(
+            textposition="outside",
+            marker_line_width=1,
+            marker_line_color="rgba(255,255,255,0.25)",
+        )
+
+        fig_acc.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#d8e4f0", family="Segoe UI", size=12),
+            title=dict(
+                font=dict(size=20, color="#d8e4f0"),
+                x=0.5,
+                xanchor="center"
+            ),
+            legend=dict(
+                title="Preprocessing",
+                bgcolor="rgba(0,0,0,0)",
+                bordercolor="rgba(0,212,255,0.18)",
+                borderwidth=1,
+                font=dict(color="#d8e4f0")
+            ),
+            xaxis=dict(
+                title="Model Architecture",
+                gridcolor="rgba(255,255,255,0.04)",
+                title_font_color="#607a9a"
+            ),
+            yaxis=dict(
+                title="Accuracy (%)",
+                range=[84, 94],
+                gridcolor="rgba(255,255,255,0.06)",
+                title_font_color="#607a9a"
+            ),
+            height=460,
+            margin=dict(t=70, b=70, l=60, r=30),
+            transition=dict(duration=800, easing="cubic-in-out")
+        )
+
+        st.plotly_chart(fig_acc, use_container_width=True)
+
+        st.markdown('<div class="premium-divider"></div>', unsafe_allow_html=True)
+
+        # ── AUC Chart ──────────────────────────────────────────────────────────
+        fig_auc = px.bar(
+            CHART_DATA,
+            x="Model",
+            y="AUC",
+            color="Preprocessing",
+            barmode="group",
+            text=CHART_DATA["AUC"].apply(lambda x: f"{x:.3f}"),
+            color_discrete_map={
+                "ORIGINAL": "#00d4ff",
+                "HE": "#ffa502",
+                "CLAHE": "#2ed573",
+            },
+            title="Validation AUC by Model & Preprocessing"
+        )
+
+        fig_auc.update_traces(
+            textposition="outside",
+            marker_line_width=1,
+            marker_line_color="rgba(255,255,255,0.25)",
+        )
+
+        fig_auc.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#d8e4f0", family="Segoe UI", size=12),
+            title=dict(
+                font=dict(size=20, color="#d8e4f0"),
+                x=0.5,
+                xanchor="center"
+            ),
+            legend=dict(
+                title="Preprocessing",
+                bgcolor="rgba(0,0,0,0)",
+                bordercolor="rgba(0,212,255,0.18)",
+                borderwidth=1,
+                font=dict(color="#d8e4f0")
+            ),
+            xaxis=dict(
+                title="Model Architecture",
+                gridcolor="rgba(255,255,255,0.04)",
+                title_font_color="#607a9a"
+            ),
+            yaxis=dict(
+                title="Area Under ROC Curve (AUC)",
+                range=[0.94, 0.98],
+                gridcolor="rgba(255,255,255,0.06)",
+                title_font_color="#607a9a"
+            ),
+            height=460,
+            margin=dict(t=70, b=70, l=60, r=30),
+            transition=dict(duration=800, easing="cubic-in-out")
+        )
+
+        st.plotly_chart(fig_auc, use_container_width=True)
+
+    else:
+        # ── Matplotlib fallback ────────────────────────────────────────────────
+        st.warning("Plotly is not available. Showing static Matplotlib charts instead.")
+
+        fig, ax = plt.subplots(figsize=(12, 5), facecolor="#0a0e1a")
+        pivot_acc = CHART_DATA.pivot(index="Model", columns="Preprocessing", values="Accuracy")
+        pivot_acc.plot(kind="bar", ax=ax)
+        ax.set_title("Validation Accuracy by Model & Preprocessing", color="#d8e4f0")
+        ax.set_ylabel("Accuracy (%)", color="#d8e4f0")
+        ax.set_xlabel("Model Architecture", color="#d8e4f0")
+        ax.tick_params(colors="#d8e4f0")
+        ax.set_facecolor("#0d1321")
+        ax.legend(facecolor="#0d1321", labelcolor="#d8e4f0")
+        st.pyplot(fig)
+
+        fig, ax = plt.subplots(figsize=(12, 5), facecolor="#0a0e1a")
+        pivot_auc = CHART_DATA.pivot(index="Model", columns="Preprocessing", values="AUC")
+        pivot_auc.plot(kind="bar", ax=ax)
+        ax.set_title("Validation AUC by Model & Preprocessing", color="#d8e4f0")
+        ax.set_ylabel("AUC", color="#d8e4f0")
+        ax.set_xlabel("Model Architecture", color="#d8e4f0")
+        ax.tick_params(colors="#d8e4f0")
+        ax.set_facecolor("#0d1321")
+        ax.legend(facecolor="#0d1321", labelcolor="#d8e4f0")
+        st.pyplot(fig)
+
+    st.markdown('</div>', unsafe_allow_html=True)
