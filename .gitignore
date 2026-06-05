@@ -34,6 +34,16 @@ env/
 # Python_Code/results/
 
 # ==============================================================================
+# PRESENTATION (PERSONAL USE)
+# ==============================================================================
+*.pptx
+Python_Code/ppt_assets/
+Python_Code/ppt_figures.py
+Python_Code/ppt_figures_run1.py
+Python_Code/build_ppt.js
+Python_Code/check_ppt.py
+
+# ==============================================================================
 # OS GENERATED FILES
 # ==============================================================================
 .DS_Store
